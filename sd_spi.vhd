@@ -26,6 +26,8 @@
 --
 --    Revision History:
 --    Revision 1.0 2013-05-03
+--    Revision 1.01 2014-09-23 Correct wr_erase_count handling
+--
 --    Initial Release
 --
 ---------------------------------------------------------------------------
@@ -285,6 +287,7 @@ begin
 				transfer_data_out <= false;
 				sCs <= '1';
 				sDin_taken <= '0';
+				wr_erase_count <= "00000001";
 				-- SD outputs
 				sclk <= '0';
 				cs <= '1';
@@ -326,6 +329,7 @@ begin
 				sclk <= new_sclk;
 				cs <= new_cs;
 				mosi <= new_data_out(7);
+				wr_erase_count <= new_wr_erase_count;
 				-- Interface outputs
 				sd_type <= new_card_type;
 				sd_busy <= new_busy;
@@ -614,10 +618,10 @@ begin
 					new_address <= addr; set_address <= true;
 					if wr='1' then
 						new_multiple <= false;
-						wr_erase_count <= "00000001";
+						new_wr_erase_count <= "00000001";
 					else
 						new_multiple <= true;
-						wr_erase_count <= erase_count;
+						new_wr_erase_count <= erase_count;
 					end if;
 					new_state <= SET_ERASE_COUNT_CMD;
 				else
