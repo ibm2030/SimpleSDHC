@@ -28,15 +28,22 @@ Reading from the card:
 * dout (out) - 8bit data coming from the card
 * dout_avail (out) - Indicates that data is present on dout
 * dout_taken (in) - Indicates that data out has been accepted
+* rd_multiple (in) - Read Multiple sectors trigger signal, assert for entire transfer
 
 Writing to the card:
 * wr (in) - Write trigger signal, must be asserted for the entire transfer
 * din (in) - 8bit data to be sent to the card
 * din_valid (in) - Indicates that data is present on din
 * din_taken (out) - Indicates that the controller has taken the data from din
+* wr_multiple (in) - Write Multiple sectors trigger signal - assert for entire transfer
+* erase_count (in) - 8bit count of pre-erased sectors for Write Multiple only
 
-(*) During intialisation the clock is reduced to 1/128, or about 400kHz.
+Optional status signals:
+* sd_type (out) - 2bit card status
+* sd_fsm (out) - 8bit FSM state indication
+
+(*) During initialisation the clock is reduced to 1/128, or about 400kHz.
 
 Lawrence Wilkinson
 lawrence@ljw.me.uk
-2013-05-02
+2014-09-23
