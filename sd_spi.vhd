@@ -27,6 +27,7 @@
 --    Revision History:
 --    Revision 1.0 2013-05-03
 --    Revision 1.01 2014-09-23 Correct wr_erase_count handling
+--		Revision 1.02 2014-09-24 Fix error in read handshaking
 --
 --    Initial Release
 --
@@ -983,8 +984,6 @@ begin
 			if slow_clock=false or clock_divider=0 then
 				new_clock_divider <= slowClockDivider;
 				if (bit_counter = 0) then
-					-- Return
-					new_bit_counter <= 7;
 					-- Reception handling - if DAvail and DTaken are down, transfer new byte into output register and raise DAvail
 					if transfer_data_out and (rd='1' or rd_multiple='1') then
 						if sDavail='0' and dout_taken='0' then
@@ -992,9 +991,12 @@ begin
 							-- otherwise wait here until dout_taken rises
 							set_davail <= true;
 							new_byte_counter <= byte_counter - 1; set_byte_counter <= true;
+							-- Return
+							new_bit_counter <= 7;
 							new_state <= sr_return_state;
 						end if;
 					else
+						new_bit_counter <= 7;
 						new_state <= sr_return_state;
 						new_byte_counter <= byte_counter - 1; set_byte_counter <= true;
 					end if;
