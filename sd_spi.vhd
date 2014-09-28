@@ -28,6 +28,7 @@
 --    Revision 1.0 2013-05-03
 --    Revision 1.01 2014-09-23 Correct wr_erase_count handling
 --		Revision 1.02 2014-09-24 Fix error in read handshaking
+--		Revision 1.03 2014-09-28 Improve write handshaking
 --
 --    Initial Release
 --
@@ -256,6 +257,8 @@ signal slow_clock, new_slow_clock : boolean := true;
 signal clock_divider, new_clock_divider : integer range 0 to slowClockDivider := 0;
 signal multiple, new_multiple : boolean := false;
 signal skipFirstR1Byte, new_skipFirstR1Byte : boolean := false;
+signal din_latch : boolean := false;
+signal last_din_valid : std_logic := '0';
 
 begin
 	-- This process updates all the state variables from the values calculated
@@ -325,7 +328,6 @@ begin
 				crcLow <= new_crcLow;
 				transfer_data_out <= new_transfer_data_out;
 				sCs <= new_cs;
-				sDin_taken <= new_din_taken;
 				-- SD outputs
 				sclk <= new_sclk;
 				cs <= new_cs;
@@ -344,9 +346,27 @@ begin
 					sDavail <= '0';
 					dout_avail <= '0';
 				end if;
-				din_taken <= new_din_taken;
 				multiple <= new_multiple;
 				skipFirstR1Byte <= new_skipFirstR1Byte;
+
+				-- This latches the din_valid and generates din_latch and din_taken
+				if din_valid='0' or (wr='0' and wr_multiple='0') then
+					-- Reset din_latch when din_valid is false, or no write in progress
+					sDin_taken <= '0';
+					din_taken <= '0';
+					din_latch <= false;
+				elsif din_valid='1' and last_din_valid='0' then
+					-- Set din_latch on rising edge of din_valid
+					sDin_taken <= '0';
+					din_taken <= '0';
+					din_latch <= true;
+				elsif din_latch and new_din_taken='1' then
+					-- Reset din_latch when din_taken rises
+					sDin_taken <= '1';
+					din_taken <= '1';
+					din_latch <= false;
+				end if;
+				last_din_valid <= din_valid;
 			end if;
 		end if;
     end process;
@@ -361,7 +381,7 @@ begin
 		state,bit_counter,card_type,byte_counter,data_in,data_out,
 		address,addr,dout_taken,error,cmd_out,return_state,clock_divider,
 		error_code,crc7,in_crc16,out_crc16,slow_clock,card_present,
-		card_write_prot,SDin_Taken,sCS,transfer_data_out,din_valid,din,
+		card_write_prot,SDin_Taken,sCS,transfer_data_out,din_valid,din,din_latch,
 		crcLow,sDavail,sr_return_state,multiple,skipFirstR1Byte)
 	constant WriteTimeoutCount : integer := clockRate/18000 * WRITE_TIMEOUT;
 	begin
@@ -847,7 +867,7 @@ begin
 			elsif wr='0' and wr_multiple='0' then
 				-- Abort writing - send dummy data and bad CRC
 				new_state <= WRITE_BLOCK_ABORT;
-			elsif din_valid='1' then
+			elsif din_latch then
 				new_data_out <= din;
 				new_din_taken <= '1';
 				new_sr_return_state <= WRITE_BLOCK_DATA; set_sr_return_state <= true;
@@ -904,7 +924,11 @@ begin
 			else
 				if multiple then
 					if wr_multiple='1' then
-						new_state <= WRITE_BLOCK_DATA_TOKEN;
+						if din_latch then
+							new_state <= WRITE_BLOCK_DATA_TOKEN;
+						else
+							-- Wait here for din_latch before starting another block
+						end if;
 					else
 						new_state <= WRITE_BLOCK_TERMINATE;
 					end if;
@@ -972,12 +996,6 @@ begin
 				new_state <= SEND_RCV_CLK1;
 			else
 				new_clock_divider <= clock_divider - 1;
-			end if;
-			-- Transmission handshaking - drop DinTaken when DinValid drops
-			if sDin_taken='1' then
-				if din_valid='0' then
-					new_din_taken <= '0';
-				end if;
 			end if;
 
 		when SEND_RCV_CLK1 =>
@@ -1066,7 +1084,7 @@ begin
 			end if;
 	    end case;
 	end process calcStateVariables;
-	
+
 	-- This calculates a debug output to determine the FSM state
 	calcDebugOutputs: block
 	begin

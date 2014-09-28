@@ -116,7 +116,7 @@ ARCHITECTURE behavior OF testbench_sd_spi IS
 constant CPOL : std_logic := '0';
 signal clk_pol : std_logic;
 
-constant byteArraySize : integer := 4000;
+constant byteArraySize : integer := 5000;
 
 signal rx_byte : std_logic_vector(7 downto 0);
 signal rx_bit_counter : integer := 0;
@@ -445,24 +445,19 @@ shared variable input_output_bytes  : byte2_array := (
 	x"FF20",x"FF21",x"FF22",x"FF23",x"FF24",x"FF25",x"FF26",x"FF27",x"FF28",x"FF29",x"FF2A",x"FF2B",x"FF2C",x"FF2D",x"FF2E",x"FF2F",
 	x"FF30",x"FF31",x"FF32",x"FF33",x"FF34",x"FF35",x"FF36",x"FF37",x"FF38",x"FF39",x"FF3A",x"FF3B",x"FF3C",x"FF3D",x"FF3E",x"FF3F",
 	x"FF09",x"FF39",
-	x"FFFF",x"4CFE",x"0000",x"0001",x"0002",x"0003",x"6104",
+	x"FFFF",x"FFFF",x"FFFF",x"FFFF",x"FFFE",
+	x"4C00",x"0001",x"0002",x"0003",x"0004",x"6105",
 	x"FF05",x"FF00", -- Delay then R1b
 	x"FF00",x"FF00",x"FF00",x"FF00",x"FF00",x"FF00",x"FF00",x"FF00",x"FF00",x"FF7F", -- Busy signal
 
-	-- Write
+	-- Write 1
 	
-	-- CMD55 FF770000000001
+	-- CMD55 FF770000000065
 	x"FFFF",x"77FF",x"00FF",x"00FF",x"00FF",x"00FF",x"65FF",x"FFFF",x"FF00", -- R1
-	-- ACMD23
+	-- ACMD23 FF57000000013D
 	x"FFFF",x"57FF",x"00FF",x"00FF",x"00FF",x"01FF",x"3DFF",x"FFFF",x"FF00", -- R1
-	-- CMD24 FF5800000000000
-	x"FFFF",
-	x"58FF",
-	x"00FF",
-	x"00FF",
-	x"00FF",
-	x"00FF",
-	x"6FFF", --
+	-- CMD24 FF58000000006F
+	x"FFFF",x"58FF",x"00FF",x"00FF",x"00FF",x"00FF",x"6FFF",
 	x"FFFF", -- Wait
 	x"FFFF", -- Wait
 	x"FF00", -- R1 IDLE=0
@@ -504,19 +499,13 @@ shared variable input_output_bytes  : byte2_array := (
 	x"FF00",x"FF00",x"FF00",x"FF00",x"FF00",x"FF00",x"FF00",x"FF00",x"FF00",x"FF00",x"FF0F", -- Working
 	x"FFFF",
 	
-	-- Write Multiple
+	-- Write 2 Multiple
 	-- CMD55 FF770000000001
 	x"FFFF",x"77FF",x"00FF",x"00FF",x"00FF",x"00FF",x"65FF",x"FFFF",x"FF00", -- R1
-	-- ACMD23
+	-- ACMD23 FF57000000020B
 	x"FFFF",x"57FF",x"00FF",x"00FF",x"00FF",x"02FF",x"0BFF",x"FFFF",x"FF00", -- R1
-	-- CMD25 FF5900000000000
-	x"FFFF",
-	x"59FF",
-	x"00FF",
-	x"00FF",
-	x"00FF",
-	x"00FF",
-	x"03FF", --
+	-- CMD25 FF590000000003
+	x"FFFF",x"59FF",x"00FF",x"00FF",x"00FF",x"00FF",x"03FF",
 	x"FFFF", -- Wait
 	x"FFFF", -- Wait
 	x"FF00", -- R1 IDLE=0
@@ -556,12 +545,12 @@ shared variable input_output_bytes  : byte2_array := (
 	x"40FF",x"DAFF", -- CRC
 	x"FF05", -- Accepted
 	x"FF00",x"FF00",x"FF00",x"FF00",x"FF00",x"FF00",x"FF00",x"FF00",x"FF00",x"FF00",x"FF00", -- Working
-	x"FFFF", -- Finished
+	x"FFFF", -- Finished write
 	x"FDFF", -- End Token
 	x"FF00",x"FF00",x"FF00",x"FF00",x"FF00",x"FF00",x"FF00",x"FF00",x"FF00",x"FF00",x"FF00", -- Working
-	x"FFFF", -- Finished
+	x"FFFF", -- Finished write
 
-	-- Write Multiple, error
+	-- Write 3 Multiple, error
 	-- CMD55 FF770000000001
 	x"FFFF",x"77FF",x"00FF",x"00FF",x"00FF",x"00FF",x"65FF",x"FFFF",x"FF00", -- R1
 	-- ACMD23
@@ -697,11 +686,12 @@ BEGIN
 		for b in 0 to 511 loop
 			wait until dout_avail='1';
 			-- report slv_to_string(dout);
-			wait for 101ns;
+			wait for 10ns;
 			assert conv_integer(dout)=(b mod 64) report "Read 1 mismatch " & slv_to_string(dout);
+			wait for b * 10ns;
 			dout_taken <= '1';
 			wait until dout_avail='0';
-			wait for 21ns;
+			wait for b * 11ns;
 			dout_taken <= '0';
 		end loop;
 		rd <= '0';
@@ -715,11 +705,12 @@ BEGIN
 		for b in 0 to 10 loop
 			wait until dout_avail='1';
 			-- report slv_to_string(dout);
-			wait for 21ns;
+			wait for 10ns;
 			assert conv_integer(dout)=(b mod 64) report "Read 2 mismatch " & slv_to_string(dout);
+			wait for b * 21ns;
 			dout_taken <= '1';
 			wait until dout_avail='0';
-			wait for 21ns;
+			wait for b * 22ns;
 			dout_taken <= '0';
 		end loop;
 		rd <= '0';
@@ -733,11 +724,12 @@ BEGIN
 		for b in 0 to 521 loop
 			wait until dout_avail='1';
 			-- report slv_to_string(dout);
-			wait for 21ns;
+			wait for 10ns;
 			assert conv_integer(dout)=(b mod 64) report "Read 3 mismatch " & slv_to_string(dout);
+			wait for b * 7ns;
 			dout_taken <= '1';
 			wait until dout_avail='0';
-			wait for 21ns;
+			wait for b * 11ns;
 			dout_taken <= '0';
 		end loop;
 		rd_multiple <= '0';
@@ -751,11 +743,12 @@ BEGIN
 		for b in 0 to 511 loop
 			wait until dout_avail='1';
 			-- report slv_to_string(dout);
-			wait for 21ns;
+			wait for 1ns;
 			assert conv_integer(dout)=(b mod 64) report "Read 4 mismatch " & slv_to_string(dout);
+			wait for 1us;
 			dout_taken <= '1';
 			wait until dout_avail='0';
-			wait for 21ns;
+			wait for 1us;
 			dout_taken <= '0';
 		end loop;
 		rd_multiple <= '0';
@@ -772,10 +765,10 @@ BEGIN
 			din <= vec9(7 downto 0);
 			din_valid <= '1';
 			wait until din_taken='1';
-			wait for 20ns;
+			wait for b * 3ns;
 			din_valid <= '0';
 			wait until din_taken='0';
-			wait for 20ns;
+			wait for b * 7ns;
 			-- report slv_to_string(din);
 		end loop;
 		wr <= '0';
@@ -788,18 +781,20 @@ BEGIN
 		report "Starting Write 2 at byte_counter=" & integer'image(rx_byte_counter);
 		wr_multiple <= '1';
 		for b in 0 to 511 loop
+			wait for b * 17ns;
 			vec9 := STD_LOGIC_VECTOR(to_unsigned(b,9));
 			din <= vec9(7 downto 0);
 			din_valid <= '1';
 			wait until din_taken='1';
-			wait for 20ns;
+			wait for b * 13ns;
 			din_valid <= '0';
 			wait until din_taken='0';
-			wait for 20ns;
 			-- report slv_to_string(din);
 		end loop;
 		wr_multiple <= '0';
 		wait until sd_busy='0';
+		-- Note - will get an error 011 if wr_multiple drops too late
+--		assert sd_error='1' and sd_error_code="011" report "Missing Error in Write 2";
 		assert sd_error='0' report "Error in Write 2";
 		wait for 500ns;
 		
@@ -812,10 +807,10 @@ BEGIN
 			din <= vec9(7 downto 0);
 			din_valid <= '1';
 			wait until din_taken='1';
-			wait for 20ns;
+			wait for b * 7ns;
 			din_valid <= '0';
 			wait until din_taken='0';
-			wait for 20ns;
+			wait for b * 11ns;
 			-- report slv_to_string(din);
 		end loop;
 		wr_multiple <= '0';
