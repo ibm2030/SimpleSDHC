@@ -29,6 +29,7 @@
 --    Revision 1.01 2014-09-23 Correct wr_erase_count handling
 --		Revision 1.02 2014-09-24 Fix error in read handshaking
 --		Revision 1.03 2014-09-28 Improve write handshaking
+--		Revision 1.04 2014-09-29 Streamline aborted read transfers
 --
 --    Initial Release
 --
@@ -1003,15 +1004,33 @@ begin
 				new_clock_divider <= slowClockDivider;
 				if (bit_counter = 0) then
 					-- Reception handling - if DAvail and DTaken are down, transfer new byte into output register and raise DAvail
-					if transfer_data_out and (rd='1' or rd_multiple='1') then
-						if sDavail='0' and dout_taken='0' then
-							-- If we're ok to transfer data, then do it
-							-- otherwise wait here until dout_taken rises
-							set_davail <= true;
+					if transfer_data_out then
+						if (rd='1' or rd_multiple='1') then
+							if sDavail='0' and dout_taken='0' then
+								-- If we're ok to transfer data, then do it
+								-- otherwise wait here until dout_taken rises
+								set_davail <= true;
+								new_byte_counter <= byte_counter - 1; set_byte_counter <= true;
+								-- Next byte
+								new_bit_counter <= 7;
+								if byte_counter=1 then
+									new_transfer_data_out <= false;
+									new_sr_return_state <= READ_BLOCK_CRC;
+									set_sr_return_state <= true;
+								end if;
+								new_state <= SEND_RCV;
+							end if;
+						else
+							-- Abort transfer
 							new_byte_counter <= byte_counter - 1; set_byte_counter <= true;
-							-- Return
+							-- Next byte
 							new_bit_counter <= 7;
-							new_state <= sr_return_state;
+							if byte_counter=1 then
+								new_transfer_data_out <= false;
+								new_sr_return_state <= READ_BLOCK_CRC;
+								set_sr_return_state <= true;
+							end if;
+							new_state <= SEND_RCV;
 						end if;
 					else
 						new_bit_counter <= 7;
